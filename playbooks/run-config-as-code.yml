@@ -4,5 +4,5 @@
   connection: local
   gather_subset: ['min']
   roles:
-    - role: "{{ playbook_dir }}../roles/config_as_code"
+    - role: "{{ playbook_dir }}/../roles/config_as_code"
 ...

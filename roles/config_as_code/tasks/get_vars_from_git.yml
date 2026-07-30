@@ -31,6 +31,7 @@
     dest: "{{ config_as_code_working_dir }}"
     version: "{{ config_as_code_branch_basename }}"
     key_file: "{{ ssh_key_file }}"
+    accept_hostkey: true
 
 - name: Determine if environment subdirectories exist
   register: environment_dir_check

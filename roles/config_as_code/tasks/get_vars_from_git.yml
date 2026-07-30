@@ -5,24 +5,32 @@
     config_as_code_branch_basename: "{{ config_as_code_branch | basename }}"
     config_as_code_working_dir: "{{ ansible_user_dir }}/checkout_dir"
 
-- name: Try to clone the git repo
-  no_log: "{{ config_as_code_secure_logging }}"
-  block:
-    # Forced to use the command module because:
-    # ansible.builtin.git can only authenticate via SSH key and we need to use access tokens
-    # ansible.scm.git_retrive can use access tokens, but only clones the default branch.
-    # Credentials are passed via http.extraHeader to avoid embedding secrets in the URL.
-    - name: Try to clone the repo
-      register: _git_clone
-      ansible.builtin.command:
-        cmd: >-
-          git -c http.extraHeader="Authorization: Basic {{ (config_as_code_git_user + ':' + git_access_token) | b64encode }}"
-          clone -b {{ config_as_code_branch_basename }} {{ config_as_code_repo }} {{ config_as_code_working_dir }}
+# # - name: Try to clone the git repo
+# #   no_log: "{{ config_as_code_secure_logging }}"
+# #   block:
+# #     # Forced to use the command module because:
+# #     # ansible.builtin.git can only authenticate via SSH key and we need to use access tokens
+# #     # ansible.scm.git_retrive can use access tokens, but only clones the default branch.
+# #     # Credentials are passed via http.extraHeader to avoid embedding secrets in the URL.
+# #     - name: Try to clone the repo
+# #       register: _git_clone
+# #       ansible.builtin.command:
+# #         cmd: >-
+# #           git -c http.extraHeader="Authorization: Basic {{ (config_as_code_git_user + ':' + git_access_token) | b64encode }}"
+# #           clone -b {{ config_as_code_branch_basename }} {{ config_as_code_repo }} {{ config_as_code_working_dir }}
     
-  rescue:
-    - name: Fail when unable to retrieve the git repository
-      ansible.builtin.fail:
-        msg: "{{ _git_clone['msg'] }}"
+#   rescue:
+#     - name: Fail when unable to retrieve the git repository
+#       ansible.builtin.fail:
+#         msg: "{{ _git_clone['msg'] }}"
+
+
+- name: Git checkout
+  ansible.builtin.git:
+    repo: "{{ config_as_code_repo }}"
+    dest: "{{ config_as_code_working_dir }}"
+    version: "{{ config_as_code_branch_basename }}"
+    key_file: "{{ ssh_key_file }}"
 
 - name: Determine if environment subdirectories exist
   register: environment_dir_check

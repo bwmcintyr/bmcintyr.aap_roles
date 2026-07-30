@@ -1,0 +1,10 @@
+---
+
+- name: Dynamically append facts
+  ansible.builtin.set_fact:
+    "{{ item['key'] }}": "{{ (lookup('vars', item['key'], default=[]) + item['value']) | unique }}"
+  loop: "{{ dict_item['value'] | dict2items }}"
+  loop_control:
+    label: "{{ item['key'] }}"
+
+...

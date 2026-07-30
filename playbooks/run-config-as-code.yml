@@ -1,0 +1,11 @@
+---
+- name: Apply AAP configuration As code from git repository
+  hosts: localhost
+  connection: local
+  gather_subset: ['min']
+  roles:
+    - role: "bmcintyr.aap_roles.config_as_code"
+      vars:
+        config_as_code_repo: ""
+        config_as_code_branch: "main"
+...

@@ -3,10 +3,10 @@
 # The role will look in this directory for config-as-code variables
 config_as_code_directory: aap_configuration
 config_as_code_secure_logging: true
-config_as_code_environment: "{{ lookup('ansible.builtin.env', 'aap_env') | lower }}"
-config_as_code_repo: ""
-config_as_code_branch: ""
 config_as_code_verify_user: true
+# config_as_code_environment: ""
+# config_as_code_repo: ""
+# config_as_code_branch: ""
 
 # Objects are only created if they are in the list of 'config_as_code_allowed_objects'
 config_as_code_allowed_objects:
@@ -15,7 +15,6 @@ config_as_code_allowed_objects:
   - controller_workflows
   - controller_credentials
   - controller_credential_input_sources
-  - controller_credential_types
   - controller_inventories
   - controller_inventory_sources
   - controller_notifications
@@ -35,7 +34,7 @@ config_as_code_no_org_required:
 config_as_code_no_limit: false
 
 # git defaults
-config_as_code_git_user: ""
-config_as_code_user_email: ""
-config_as_code_user_login: ""
+# config_as_code_git_user: ""
+# config_as_code_user_email: ""
+# config_as_code_user_login: ""
 ...

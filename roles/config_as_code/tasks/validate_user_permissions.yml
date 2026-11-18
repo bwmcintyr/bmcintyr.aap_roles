@@ -1,0 +1,74 @@
+---
+
+- name: Assert required variables are defined
+  ansible.builtin.assert:
+    that:
+      - config_as_code_user_email is defined or config_as_code_user_login is defined or tower_user_id is defined
+    fail_msg: |
+      Cannot validate user permissions without at least one of these defined:
+      config_as_code_user_email | config_as_code_user_login | tower_user_id
+
+# Get user id when the job was launched from AAP and not EDA
+- name: Get logged in user id block
+  when:
+    - not config_as_code_no_limit | bool
+    - not config_as_code_user_email is defined
+    - tower_user_id is defined
+  block:
+    - name: Assign user id
+      ansible.builtin.set_fact:
+        _controller_user_ids: "{{ _controller_user_ids | default([]) + [tower_user_id | string] }}"
+
+
+# Find the AAP User ID when launched from EDA
+- name: Get user details from AAP block (email)
+  when:
+    - not config_as_code_no_limit | bool
+    - config_as_code_user_email is defined
+  block:
+    - name: Search for user by email address and get user id
+      ansible.builtin.set_fact:
+        _controller_user_ids: "{{ query('ansible.controller.controller_api', 'users', query_params={ 'email__iexact': config_as_code_user_email }) | map(attribute='id') }}"
+ 
+    - name: Get user details from AAP block (firstname,lastname)
+      when: not _controller_user_ids is defined or _controller_user_ids | length == 0
+      block:
+        - name: Could not find email address
+          ansible.builtin.debug:
+            msg: "Unable to locate email address or none provided.  Searching for user {{ config_as_code_user_login }}"
+
+        - name: Search for user by first name
+          ansible.builtin.set_fact:
+            _matching_user_list: "{{ query('ansible.controller.controller_api', 'users', query_params={ 'first_name__iexact': config_as_code_user_login | split('.') | first }) }}"
+
+        - name: Match user first and last name and get id(s)
+          ansible.builtin.set_fact:
+            _controller_user_ids: "{{ _controller_user_ids | default([]) + _matching_user_list | selectattr('last_name', 'defined') | selectattr('last_name', 'match', config_as_code_user_login | split('.') | last, ignorecase=true) | map(attribute='id') }}"
+
+- name: Fail when no match for user was found
+  when:
+    - not config_as_code_no_limit | bool
+    - _controller_user_ids | length == 0
+  ansible.builtin.fail:
+    msg: |
+      Could not find any match for user {{ config_as_code_user_login }} {{ config_as_code_user_email }}
+      Please ensure the user exists in AAP before proceeding.
+
+- name: Proceed as superuser if match found
+  when: lookup('ansible.controller.controller_api', 'users/' + id_item | string )['is_superuser']
+  ansible.builtin.set_fact:
+    config_as_code_no_limit: true
+  loop: "{{ (_controller_user_ids | type_debug != 'list') | ternary([_controller_user_ids], _controller_user_ids) }}"
+  loop_control:
+    loop_var: id_item
+
+- name: Get user organizations when no superuser
+  when: not config_as_code_no_limit | bool
+  ansible.builtin.set_fact:
+    _controller_user_organizations: "{{ _controller_user_organizations | default([]) + lookup('ansible.controller.controller_api', 'users/' + id_item | string + '/organizations/', return_objects=false, return_all=true )['results'] | map(attribute='name') }}"
+  loop: "{{ (_controller_user_ids | type_debug != 'list') | ternary([_controller_user_ids], _controller_user_ids) }}"
+  loop_control:
+    loop_var: id_item
+
+
+...

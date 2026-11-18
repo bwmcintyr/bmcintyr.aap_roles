@@ -5,33 +5,20 @@
     config_as_code_branch_basename: "{{ config_as_code_branch | basename }}"
     config_as_code_working_dir: "{{ ansible_user_dir }}/checkout_dir"
 
-# # - name: Try to clone the git repo
-# #   no_log: "{{ config_as_code_secure_logging }}"
-# #   block:
-# #     # Forced to use the command module because:
-# #     # ansible.builtin.git can only authenticate via SSH key and we need to use access tokens
-# #     # ansible.scm.git_retrive can use access tokens, but only clones the default branch.
-# #     # Credentials are passed via http.extraHeader to avoid embedding secrets in the URL.
-# #     - name: Try to clone the repo
-# #       register: _git_clone
-# #       ansible.builtin.command:
-# #         cmd: >-
-# #           git -c http.extraHeader="Authorization: Basic {{ (config_as_code_git_user + ':' + git_access_token) | b64encode }}"
-# #           clone -b {{ config_as_code_branch_basename }} {{ config_as_code_repo }} {{ config_as_code_working_dir }}
-    
-#   rescue:
-#     - name: Fail when unable to retrieve the git repository
-#       ansible.builtin.fail:
-#         msg: "{{ _git_clone['msg'] }}"
+- name: Try to clone the git repo
+  no_log: "{{ config_as_code_secure_logging }}"
+  block:
+    - name: Try to clone the repo
+      register: _git_clone
+      ansible.builtin.command:
+        cmd: >-
+          git -c http.extraHeader="Authorization: Basic {{ (config_as_code_gitlab_user + ':' + gitlab_pat) | b64encode }}"
+          clone -b {{ config_as_code_branch_basename }} {{ config_as_code_repo }} {{ config_as_code_working_dir }}
 
-
-- name: Git checkout
-  ansible.builtin.git:
-    repo: "{{ config_as_code_repo }}"
-    dest: "{{ config_as_code_working_dir }}"
-    version: "{{ config_as_code_branch_basename }}"
-    key_file: "{{ ssh_key_file }}"
-    accept_hostkey: true
+  rescue:
+    - name: Fail when unable to retrieve the git repository
+      ansible.builtin.fail:
+        msg: "{{ _git_clone['msg'] }}"
 
 - name: Determine if environment subdirectories exist
   register: environment_dir_check
@@ -59,7 +46,8 @@
     paths: "{{ config_file_dirs | default(config_as_code_working_dir + '/' + config_as_code_directory) }}"
     file_type: file
     patterns: ['*.yml']
-    recurse: true
+    recurse: "{{ (environment_dir_check['stat']['exists']) | ternary(true,false) }}"
+
 
 - name: Include variable definitions from found files
   register: _included_vars
@@ -85,5 +73,6 @@
   loop: "{{ _updated_vars | dict2items }}"
   loop_control:
     loop_var: dict_item
-  
+    label: "{{ dict_item['key'] }}"
+
 ...

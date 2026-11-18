@@ -1,10 +1,32 @@
 ---
+- name: Dynamically append facts matching user organization(s)
+  when:
+    - not config_as_code_no_limit | bool
+    - config_as_code_verify_user | bool
+    - item['key'] in config_as_code_allowed_objects
+  ansible.builtin.set_fact:
+    "{{ item['key'] }}": "{{ (lookup('vars', item['key'], default=[]) + item['value'] | selectattr('organization', 'defined') | selectattr('organization', 'in', _controller_user_organizations)) | unique }}"
+  loop: "{{ dict_item['value'] | dict2items }}"
+  loop_control:
+    label: "{{ item['key'] }}"
 
 - name: Dynamically append facts
+  when:
+    - not config_as_code_no_limit | bool
+    - item['key'] in config_as_code_allowed_objects
+    - not config_as_code_verify_user | bool
   ansible.builtin.set_fact:
     "{{ item['key'] }}": "{{ (lookup('vars', item['key'], default=[]) + item['value']) | unique }}"
   loop: "{{ dict_item['value'] | dict2items }}"
   loop_control:
     label: "{{ item['key'] }}"
 
+- name: Dynamically append facts without organization verification
+  when:
+    - config_as_code_no_limit | bool or (item['key'] in config_as_code_no_org_required and item['key'] in config_as_code_allowed_objects)
+  ansible.builtin.set_fact:
+    "{{ item['key'] }}": "{{ (lookup('vars', item['key'], default=[]) + item['value']) | unique }}"
+  loop: "{{ dict_item['value'] | dict2items }}"
+  loop_control:
+    label: "{{ item['key'] }}"
 ...

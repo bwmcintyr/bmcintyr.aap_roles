@@ -5,20 +5,13 @@
     config_as_code_branch_basename: "{{ config_as_code_branch | basename }}"
     config_as_code_working_dir: "{{ ansible_user_dir }}/checkout_dir"
 
-- name: Try to clone the git repo
-  no_log: "{{ config_as_code_secure_logging }}"
-  block:
-    - name: Try to clone the repo
-      register: _git_clone
-      ansible.builtin.command:
-        cmd: >-
-          git -c http.extraHeader="Authorization: Basic {{ (config_as_code_gitlab_user + ':' + gitlab_pat) | b64encode }}"
-          clone -b {{ config_as_code_branch_basename }} {{ config_as_code_repo }} {{ config_as_code_working_dir }}
-
-  rescue:
-    - name: Fail when unable to retrieve the git repository
-      ansible.builtin.fail:
-        msg: "{{ _git_clone['msg'] }}"
+- name: Git checkout
+  ansible.builtin.git:
+    repo: "{{ config_as_code_repo }}"
+    dest: "{{ config_as_code_working_dir }}"
+    version: "{{ config_as_code_branch_basename }}"
+    key_file: "{{ ssh_key_path }}"
+    accept_hostkey: true
 
 - name: Determine if environment subdirectories exist
   register: environment_dir_check

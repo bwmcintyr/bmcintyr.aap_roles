@@ -1,0 +1,19 @@
+---
+- name: github listener
+  hosts: all
+  sources:
+    - name: generic source
+      ansible.eda.generic:
+  rules:
+    - name: "trigger job template on merge"
+      condition: event.payload.object_kind == 'push'
+      actions:
+        - run_job_template:
+            name: "run-config-as-code"
+            organization: Default
+            labels:
+              - "{{ event.payload.gitlab_project_name | default(None) }}"
+            job_args:
+              extra_vars:
+                config_as_code_repo: "{{ event.payload.gitlab_project_url }}"
+                config_as_code_branch: "{{ event.payload.gitlab_project_branch }}"

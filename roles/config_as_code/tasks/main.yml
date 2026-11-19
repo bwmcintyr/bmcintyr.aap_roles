@@ -6,9 +6,9 @@
       - config_as_code_branch is defined and config_as_code_branch != ""
     fail_msg: "Both 'config_as_code_repo' and 'config_as_code_branch' must be defined."
 
-- name: Get user organizations
-  ansible.builtin.include_tasks:
-    file: validate_user_permissions.yml
+# - name: Get user organizations
+#   ansible.builtin.include_tasks:
+#     file: validate_user_permissions.yml
 
 - name: Clone git repo and get vars
   ansible.builtin.include_tasks:

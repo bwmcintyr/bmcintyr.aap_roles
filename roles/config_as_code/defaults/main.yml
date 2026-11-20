@@ -4,7 +4,7 @@
 config_as_code_directory: aap_configuration
 config_as_code_secure_logging: true
 config_as_code_verify_user: true
-# config_as_code_environment: ""
+config_as_code_environment: "dev"
 # config_as_code_repo: ""
 # config_as_code_branch: ""
 

@@ -1,0 +1,39 @@
+---
+
+# The role will look in this directory for config-as-code variables
+config_as_code_directory: aap_configuration
+config_as_code_secure_logging: true
+config_as_code_verify_user: true
+# config_as_code_environment: ""
+# config_as_code_repo: ""
+# config_as_code_branch: ""
+
+# Objects are only created if they are in the list of 'config_as_code_allowed_objects'
+config_as_code_allowed_objects:
+  - controller_projects
+  - controller_templates
+  - controller_workflows
+  - controller_credentials
+  - controller_credential_input_sources
+  - controller_inventories
+  - controller_inventory_sources
+  - controller_notifications
+  - controller_schedules
+  - eda_projects
+  - eda_credentials
+  - eda_rulebook_activations
+  - eda_event_streams
+
+config_as_code_no_org_required:
+  - controller_credential_input_sources
+  - controller_credential_types
+  - eda_credential_types
+
+# Set config_as_code_no_limit: true in the Job Template for unlimited CaC.
+# This will ignore the 'config_as_code_allowed_objects' list
+config_as_code_no_limit: false
+
+# git defaults
+# config_as_code_git_user: ""
+# config_as_code_user_email: ""
+...

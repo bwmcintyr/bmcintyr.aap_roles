@@ -1,0 +1,78 @@
+---
+# Fix config_as_code_branch
+- name: Update config_as_code_branch to remove "/refs/heads"
+  ansible.builtin.set_fact:
+    config_as_code_branch_basename: "{{ config_as_code_branch | basename }}"
+    config_as_code_working_dir: "{{ ansible_user_dir }}/checkout_dir"
+
+- name: Try to clone the git repo
+  no_log: "{{ config_as_code_secure_logging }}"
+  block:
+    - name: Try to clone the repo
+      register: _git_clone
+      ansible.builtin.command:
+        cmd: >-
+          git -c http.extraHeader="Authorization: Basic {{ (config_as_code_gitlab_user + ':' + gitlab_pat) | b64encode }}"
+          clone -b {{ config_as_code_branch_basename }} {{ config_as_code_repo }} {{ config_as_code_working_dir }}
+
+  rescue:
+    - name: Fail when unable to retrieve the git repository
+      ansible.builtin.fail:
+        msg: "{{ _git_clone['msg'] }}"
+
+- name: Determine if environment subdirectories exist
+  register: environment_dir_check
+  ansible.builtin.stat:
+    path: "{{ config_as_code_working_dir }}/{{ config_as_code_directory }}/{{ config_as_code_environment | default(config_as_code_branch_basename) }}"
+
+- name: Set list of paths to check for vars files
+  when: environment_dir_check['stat']['exists']
+  ansible.builtin.set_fact:
+    config_file_dirs:
+      - "{{ config_as_code_working_dir }}/{{ config_as_code_directory }}/all"
+      - "{{ config_as_code_working_dir }}/{{ config_as_code_directory }}/{{ config_as_code_environment | default(config_as_code_branch_basename) }}"
+
+- name: Print the list of config dirs
+  ansible.builtin.debug:
+    msg: |
+      Checking these directories for vars files
+      {{ config_file_dirs | default(config_as_code_working_dir + '/' + config_as_code_directory) }}
+    verbosity: 3
+
+# Get a list of all files in the configuration directory
+- name: Find all vars files in the configuration directory
+  register: _found_files
+  ansible.builtin.find:
+    paths: "{{ config_file_dirs | default(config_as_code_working_dir + '/' + config_as_code_directory) }}"
+    file_type: file
+    patterns: ['*.yml']
+    recurse: "{{ (environment_dir_check['stat']['exists']) | ternary(true,false) }}"
+
+
+- name: Include variable definitions from found files
+  register: _included_vars
+  ansible.builtin.include_vars:
+    file: "{{ file_item['path'] }}"
+    name: "{{ file_item['path'] | regex_replace('[^a-zA-Z0-9]', '_') }}"
+  loop: "{{ _found_files['files'] }}"
+  loop_control:
+    loop_var: file_item
+    label: "{{ file_item['path'] }}"
+
+- name: Consolidate variables into a single dictionary
+  ansible.builtin.set_fact:
+    _updated_vars: "{{ _updated_vars | default({}) | combine(var_item['ansible_facts']) }}"
+  loop: "{{ _included_vars['results'] }}"
+  loop_control:
+    loop_var: var_item
+    label: "{{ var_item['ansible_included_var_files'] }}"
+
+- name: Process combined dictionary
+  ansible.builtin.include_tasks:
+    file: append_facts.yml
+  loop: "{{ _updated_vars | dict2items }}"
+  loop_control:
+    loop_var: dict_item
+    label: "{{ dict_item['key'] }}"
+
+...

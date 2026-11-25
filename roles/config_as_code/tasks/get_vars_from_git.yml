@@ -46,7 +46,7 @@
     paths: "{{ config_file_dirs | default(config_as_code_working_dir + '/' + config_as_code_directory) }}"
     file_type: file
     patterns: ['*.yml']
-    recurse: "{{ (environment_dir_check['stat']['exists']) | ternary(true,false) }}"
+    recurse: "{{ (environment_dir_check['stat']['exists']) | ternary(true, false) }}"
 
 
 - name: Include variable definitions from found files

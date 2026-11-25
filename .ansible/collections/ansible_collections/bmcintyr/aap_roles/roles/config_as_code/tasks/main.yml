@@ -1,0 +1,21 @@
+---
+- name: Assert that required variables are defined
+  ansible.builtin.assert:
+    that:
+      - config_as_code_repo is defined and config_as_code_repo != ""
+      - config_as_code_branch is defined and config_as_code_branch != ""
+    fail_msg: "Both 'config_as_code_repo' and 'config_as_code_branch' must be defined."
+
+- name: Get user organizations
+  ansible.builtin.include_tasks:
+    file: validate_user_permissions.yml
+
+- name: Clone git repo and get vars
+  ansible.builtin.include_tasks:
+    file: get_vars_from_git.yml
+
+- name: Apply configuration for AAP
+  ansible.builtin.include_role:
+    name: infra.aap_configuration.dispatch
+
+...

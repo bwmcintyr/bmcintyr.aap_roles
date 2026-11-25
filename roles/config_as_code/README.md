@@ -41,8 +41,7 @@ Before running this project, you will need:
 |`config_as_code_branch`||yes|str|The branch of the source git repository|'dev'|
 |`config_as_code_directory`|aap_configuration|yes|str|The directory at the root of the project where resource definitions are found.|'aap_configuration'|
 |`config_as_code_environment`|dev|yes|str|The current environment where the job is being executed.|'dev'|
-|`config_as_code_user_login`||no|str|Git username. Used to find user in AAP when executed from git pipeline.|firstname.lastname|
-|`config_as_code_user_email`||no|str|Git email. Used to find user in AAP when executed from git pipeline.|firstname.lastname@example.com|
+|`config_as_code_user_email`||no|str|Git email. Required when launched by EDA; used to find the one AAP user with this email address. When empty (e.g. launched from the AAP UI), the user who launched the job is used.|firstname.lastname@example.com|
 |`config_as_code_allowed_objects`||no|list|AAP resources that will be created for normal users.  Does not apply to 'superuser'.|config_as_code_allowed_objects: ['controller_projects', 'controller_templates']|
 |`config_as_code_secure_logging`|`true`|no|boolean|Whether or not to include sensitive role tasks in the log|
 

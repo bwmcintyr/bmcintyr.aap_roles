@@ -36,5 +36,4 @@ config_as_code_no_limit: false
 # git defaults
 # config_as_code_git_user: ""
 # config_as_code_user_email: ""
-# config_as_code_user_login: ""
 ...

@@ -1,0 +1,30 @@
+{
+ "collection_info": {
+  "namespace": "bmcintyr",
+  "name": "aap_roles",
+  "version": "1.0.0",
+  "authors": [
+   "Benjamin McIntyre <bmcintyr@redhat.com>"
+  ],
+  "readme": "README.md",
+  "tags": [],
+  "description": "This collection conatins roles for configuring aap",
+  "license": [
+   "GPL-2.0-or-later"
+  ],
+  "license_file": null,
+  "dependencies": {},
+  "repository": "https://github.com/bwmcintyr/bmcintyr.aap_roles/bmcintyr.aap_roles",
+  "documentation": "https://github.com/bwmcintyr/bmcintyr.aap_roles/bmcintyr.aap_roles/-/blob/main/README.md",
+  "homepage": "https://github.com/bwmcintyr/bmcintyr.aap_roles/bmcintyr.aap_roles/-/blob/main/README.md",
+  "issues": "https://github.com/bwmcintyr/bmcintyr.aap_roles/bmcintyr.aap_roles/-/issues"
+ },
+ "file_manifest_file": {
+  "name": "FILES.json",
+  "ftype": "file",
+  "chksum_type": "sha256",
+  "chksum_sha256": "0881047a3019896a06ea39c0c2f35216e28c12f550a2095028310914fe83d775",
+  "format": 1
+ },
+ "format": 1
+}

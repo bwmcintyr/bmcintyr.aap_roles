@@ -1,0 +1,21 @@
+---
+- name: Gitlab Listener
+  hosts: all
+
+  sources:
+    - name: generic source
+      ansible.eda.generic:
+
+  rules:
+    - name: "Trigger Job Template"
+      condition: event.payload.object_kind == 'push'
+      actions:
+        - run_job_template:
+            name: "EDA Config-As-Code"
+            organization: config_as_code
+            job_args:
+              extra_vars:
+                config_as_code_repo: "{{ event.payload.git_project_url }}"
+                config_as_code_branch: "{{ event.payload.git_project_branch }}"
+                config_as_code_project_name: "{{ event.payload.git_project_name }}"
+...

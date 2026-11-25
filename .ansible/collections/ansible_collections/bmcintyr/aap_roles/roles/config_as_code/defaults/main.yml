@@ -34,6 +34,7 @@ config_as_code_no_org_required:
 config_as_code_no_limit: false
 
 # git defaults
-# config_as_code_git_user: ""
+# config_as_code_gitlab_user: ""
+# gitlab_pat: ""
 # config_as_code_user_email: ""
 ...

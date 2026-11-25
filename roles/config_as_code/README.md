@@ -38,9 +38,11 @@ Before running this project, you will need:
 |Variable Name|Default Value|Required|Type|Description|Example|
 |:---|:---:|:---:|:---|:---|:---|
 |`config_as_code_repo`||yes|str|The HTTP URL to the source git repository|'https://git.mycompany.com/project.git'|
-|`config_as_code_branch`||yes|str|The branch of the source git repository|'dev'|
+|`config_as_code_branch`||yes|str|The branch of the source git repository|'main'|
 |`config_as_code_directory`|aap_configuration|yes|str|The directory at the root of the project where resource definitions are found.|'aap_configuration'|
-|`config_as_code_environment`|dev|yes|str|The current environment where the job is being executed.|'dev'|
+|`config_as_code_environment`||when the repo uses environment directories|str|The current environment where the job is being executed, typically set on each AAP instance's Job Template. Selects the environment subdirectory to apply alongside `all/`.|'dev'|
+|`config_as_code_gitlab_user`||yes|str|Git username for HTTP authentication. Used together with `gitlab_pat` to clone the repository.|'svc-aap'|
+|`gitlab_pat`||yes|str|Git personal access token for HTTP authentication. Typically injected by a custom credential.|'glpat-xxxx'|
 |`config_as_code_user_email`||no|str|Git email. Required when launched by EDA; used to find the one AAP user with this email address. When empty (e.g. launched from the AAP UI), the user who launched the job is used.|firstname.lastname@example.com|
 |`config_as_code_allowed_objects`||no|list|AAP resources that will be created for normal users.  Does not apply to 'superuser'.|config_as_code_allowed_objects: ['controller_projects', 'controller_templates']|
 |`config_as_code_secure_logging`|`true`|no|boolean|Whether or not to include sensitive role tasks in the log|
@@ -74,7 +76,14 @@ While this project can be run directly from its own repository, it is intended t
 
 To add resources to AAP, developers must create `.yml` files inside an `aap_configuration` in *their* repository.
 
-The `config_as_code` role will parse any file ending in `.yml` inside this folder.  The *names* of the files do not matter, only their contents.
+The `config_as_code` role will parse any file ending in `.yml` or `.yaml` inside this folder.  The *names* of the files do not matter, only their contents.  Files are read in path order, and each file's lists are appended to any lists of the same name from earlier files.
+
+The role supports two layouts:
+
+* **Per-environment** (first example): used when `aap_configuration/` contains any subdirectories.  `config_as_code_environment` must be set.  The role reads `all/` and the environment's directory, including their subdirectories; other environments' directories are ignored.  If there is no directory for the current environment, only `all/` is applied and a note is logged.  The job fails if neither exists.
+* **Flat** (alternate example): used when `aap_configuration/` contains no subdirectories.  The role reads every file directly inside it, and `config_as_code_environment` is not needed.
+
+The job fails if `aap_configuration/` is missing or no files are found.
 
 Example Directory
 ```

@@ -1,78 +1,141 @@
 ---
-# Fix config_as_code_branch
-- name: Update config_as_code_branch to remove "/refs/heads"
+- name: Set the branch name
   ansible.builtin.set_fact:
-    config_as_code_branch_basename: "{{ config_as_code_branch | basename }}"
-    config_as_code_working_dir: "{{ ansible_user_dir }}/checkout_dir"
+    # Strip only the ref prefix so branch names containing '/' are kept whole
+    _cac_branch: "{{ config_as_code_branch | regex_replace('^refs/heads/', '') }}"
 
-- name: Try to clone the git repo
-  no_log: "{{ config_as_code_secure_logging }}"
+- name: Fail when git credentials are missing
+  ansible.builtin.assert:
+    that:
+      - config_as_code_gitlab_user | default('', true) | length > 0
+      - gitlab_pat | default('', true) | length > 0
+    fail_msg: "Both 'config_as_code_gitlab_user' and 'gitlab_pat' must be set to clone the repository."
+
+- name: Build the git command
+  no_log: true
+  ansible.builtin.set_fact:
+    _cac_git_command:
+      - git
+      - -c
+      - "http.extraHeader=Authorization: Basic {{ (config_as_code_gitlab_user ~ ':' ~ gitlab_pat) | b64encode }}"
+
+- name: Create a temporary checkout directory
+  register: _cac_checkout
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: _config_as_code
+
+- name: Load definitions from the repository
+  vars:
+    _cac_config_root: "{{ _cac_checkout['path'] }}/{{ config_as_code_directory }}"
   block:
-    - name: Try to clone the repo
-      register: _git_clone
-      ansible.builtin.command:
-        cmd: >-
-          git -c http.extraHeader="Authorization: Basic {{ (config_as_code_gitlab_user + ':' + gitlab_pat) | b64encode }}"
-          clone -b {{ config_as_code_branch_basename }} {{ config_as_code_repo }} {{ config_as_code_working_dir }}
+    - name: Clone the git repo
+      block:
+        - name: Clone the branch
+          no_log: "{{ config_as_code_secure_logging }}"
+          register: _git_clone
+          changed_when: true
+          ansible.builtin.command:
+            argv: >-
+              {{ _cac_git_command + ['clone', '--depth', '1', '--single-branch', '--branch', _cac_branch,
+                 '--', config_as_code_repo, _cac_checkout['path']] }}
 
-  rescue:
-    - name: Fail when unable to retrieve the git repository
-      ansible.builtin.fail:
-        msg: "{{ _git_clone['msg'] }}"
+      rescue:
+        - name: Fail when unable to retrieve the git repository
+          ansible.builtin.fail:
+            msg: |
+              Unable to clone branch '{{ _cac_branch }}' of {{ config_as_code_repo }}:
+              {{ _git_clone['stderr'] | default(_git_clone['msg']) | default('see the error above') }}
 
-- name: Determine if environment subdirectories exist
-  register: environment_dir_check
-  ansible.builtin.stat:
-    path: "{{ config_as_code_working_dir }}/{{ config_as_code_directory }}/{{ config_as_code_environment | default(config_as_code_branch_basename) }}"
+    - name: Check that the configuration directory exists
+      register: _cac_root_check
+      ansible.builtin.stat:
+        path: "{{ _cac_config_root }}"
 
-- name: Set list of paths to check for vars files
-  when: environment_dir_check['stat']['exists']
-  ansible.builtin.set_fact:
-    config_file_dirs:
-      - "{{ config_as_code_working_dir }}/{{ config_as_code_directory }}/all"
-      - "{{ config_as_code_working_dir }}/{{ config_as_code_directory }}/{{ config_as_code_environment | default(config_as_code_branch_basename) }}"
+    - name: Fail when the configuration directory is missing
+      ansible.builtin.assert:
+        that: _cac_root_check['stat']['isdir'] | default(false)
+        fail_msg: "Directory '{{ config_as_code_directory }}' was not found in branch '{{ _cac_branch }}' of {{ config_as_code_repo }}."
 
-- name: Print the list of config dirs
-  ansible.builtin.debug:
-    msg: |
-      Checking these directories for vars files
-      {{ config_file_dirs | default(config_as_code_working_dir + '/' + config_as_code_directory) }}
-    verbosity: 3
+    - name: Find subdirectories of the configuration directory
+      register: _cac_subdirs
+      ansible.builtin.find:
+        paths: "{{ _cac_config_root }}"
+        file_type: directory
 
-# Get a list of all files in the configuration directory
-- name: Find all vars files in the configuration directory
-  register: _found_files
-  ansible.builtin.find:
-    paths: "{{ config_file_dirs | default(config_as_code_working_dir + '/' + config_as_code_directory) }}"
-    file_type: file
-    patterns: ['*.yml']
-    recurse: "{{ (environment_dir_check['stat']['exists']) | ternary(true, false) }}"
+    # Per-environment layout (any subdirectories): read all/ plus the current environment's directory (recursively).
+    # Flat layout (no subdirectories): read only the files at the top of the configuration directory.
+    - name: Determine the configuration layout
+      ansible.builtin.set_fact:
+        _cac_per_environment: "{{ _cac_subdirs['files'] | length > 0 }}"
+        _cac_subdir_names: "{{ _cac_subdirs['files'] | map(attribute='path') | map('basename') | sort }}"
 
+    - name: Fail when the environment is not set for a per-environment layout
+      when: _cac_per_environment
+      ansible.builtin.assert:
+        that: config_as_code_environment | default('', true) | length > 0
+        fail_msg: |
+          '{{ config_as_code_directory }}' contains environment directories ({{ _cac_subdir_names | join(', ') }}),
+          so 'config_as_code_environment' must be set to choose which one to apply.
 
-- name: Include variable definitions from found files
-  register: _included_vars
-  ansible.builtin.include_vars:
-    file: "{{ file_item['path'] }}"
-    name: "{{ file_item['path'] | regex_replace('[^a-zA-Z0-9]', '_') }}"
-  loop: "{{ _found_files['files'] }}"
-  loop_control:
-    loop_var: file_item
-    label: "{{ file_item['path'] }}"
+    - name: Set the directories to search for vars files
+      vars:
+        _cac_selected: "{{ ['all', config_as_code_environment] | select('in', _cac_subdir_names) | unique | list if _cac_per_environment else [] }}"
+      ansible.builtin.set_fact:
+        _cac_config_dirs: >-
+          {{ _cac_selected | map('regex_replace', '^', _cac_config_root ~ '/') | list
+             if _cac_per_environment else [_cac_config_root] }}
 
-- name: Consolidate variables into a single dictionary
-  ansible.builtin.set_fact:
-    _updated_vars: "{{ _updated_vars | default({}) | combine(var_item['ansible_facts']) }}"
-  loop: "{{ _included_vars['results'] }}"
-  loop_control:
-    loop_var: var_item
-    label: "{{ var_item['ansible_included_var_files'] }}"
+    - name: Fail when neither all/ nor the environment's directory exists
+      when: _cac_per_environment
+      ansible.builtin.assert:
+        that: _cac_config_dirs | length > 0
+        fail_msg: |
+          '{{ config_as_code_directory }}' has no 'all' or '{{ config_as_code_environment }}' directory.
+          Found: {{ _cac_subdir_names | join(', ') }}
 
-- name: Process combined dictionary
+    - name: Note when there is no directory for the current environment
+      when:
+        - _cac_per_environment
+        - config_as_code_environment not in _cac_subdir_names
+      ansible.builtin.debug:
+        msg: "No '{{ config_as_code_environment }}' directory in '{{ config_as_code_directory }}'; applying 'all' only."
+
+    - name: Find all vars files in the configuration directories
+      register: _found_files
+      ansible.builtin.find:
+        paths: "{{ _cac_config_dirs }}"
+        file_type: file
+        patterns: ['*.yml', '*.yaml']
+        recurse: "{{ _cac_per_environment }}"
+
+    - name: Fail when no vars files were found
+      ansible.builtin.assert:
+        that: _found_files['files'] | length > 0
+        fail_msg: "No .yml or .yaml files were found in {{ _cac_config_dirs | map('relpath', _cac_checkout['path']) | join(', ') }}."
+
+    - name: Include variable definitions from found files
+      register: _included_vars
+      ansible.builtin.include_vars:
+        file: "{{ file_item }}"
+        name: _cac_file_vars
+      loop: "{{ _found_files['files'] | map(attribute='path') | sort }}"
+      loop_control:
+        loop_var: file_item
+        label: "{{ file_item | relpath(_cac_checkout['path']) }}"
+
+  always:
+    - name: Remove the temporary checkout directory
+      ansible.builtin.file:
+        path: "{{ _cac_checkout['path'] }}"
+        state: absent
+
+- name: Append each file's definitions to the matching facts
   ansible.builtin.include_tasks:
     file: append_facts.yml
-  loop: "{{ _updated_vars | dict2items }}"
+  loop: "{{ _included_vars['results'] }}"
   loop_control:
-    loop_var: dict_item
-    label: "{{ dict_item['key'] }}"
+    loop_var: file_result
+    label: "{{ file_result['file_item'] | relpath(_cac_checkout['path']) }}"
 
 ...
